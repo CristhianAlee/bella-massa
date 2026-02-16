@@ -1,0 +1,6 @@
+# Configuração NPM para Bella Massa
+# Permite instalação mesmo com conflitos de peer dependencies
+legacy-peer-deps=true
+
+# Engine strict (desabilitado para compatibilidade)
+engine-strict=false
