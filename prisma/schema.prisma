@@ -1,0 +1,260 @@
+
+```prisma
+// Bella Massa - Database Schema
+// PostgreSQL com Prisma ORM
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Usuários do sistema (Admin)
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  password  String
+  role      Role     @default(ADMIN)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+}
+
+// Categorias de produtos
+model Category {
+  id          String    @id @default(cuid())
+  name        String
+  slug        String    @unique
+  description String?
+  image       String?
+  order       Int       @default(0)
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  products    Product[]
+}
+
+// Produtos (Pizzas, Massas, Bebidas, etc)
+model Product {
+  id          String            @id @default(cuid())
+  name        String
+  slug        String            @unique
+  description String
+  image       String?
+  category    Category          @relation(fields: [categoryId], references: [id])
+  categoryId  String
+  active      Boolean           @default(true)
+  featured    Boolean           @default(false)
+  variations  ProductVariation[]
+  orderItems  OrderItem[]
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([categoryId])
+  @@index([slug])
+}
+
+// Variações de produto (tamanhos)
+model ProductVariation {
+  id          String      @id @default(cuid())
+  product     Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId   String
+  name        String      // Pequena, Média, Grande
+  price       Decimal     @db.Decimal(10, 2)
+  stock       Int         @default(0)
+  active      Boolean     @default(true)
+  orderItems  OrderItem[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([productId])
+}
+
+// Adicionais disponíveis
+model Additional {
+  id          String             @id @default(cuid())
+  name        String
+  price       Decimal            @db.Decimal(10, 2)
+  active      Boolean            @default(true)
+  orderItems  OrderItemAdditional[]
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+}
+
+// Clientes
+model Customer {
+  id          String   @id @default(cuid())
+  name        String
+  email       String?
+  phone       String
+  address     String?
+  city        String?
+  state       String?
+  zipCode     String?
+  orders      Order[]
+  leads       Lead[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([phone])
+  @@index([email])
+}
+
+// Pedidos
+model Order {
+  id              String        @id @default(cuid())
+  orderNumber     String        @unique
+  customer        Customer      @relation(fields: [customerId], references: [id])
+  customerId      String
+  status          OrderStatus   @default(RECEIVED)
+  paymentMethod   PaymentMethod
+  paymentStatus   PaymentStatus @default(PENDING)
+  subtotal        Decimal       @db.Decimal(10, 2)
+  deliveryFee     Decimal       @db.Decimal(10, 2) @default(0)
+  discount        Decimal       @db.Decimal(10, 2) @default(0)
+  total           Decimal       @db.Decimal(10, 2)
+  notes           String?
+  deliveryAddress String?
+  deliveryType    DeliveryType  @default(DELIVERY)
+  items           OrderItem[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([customerId])
+  @@index([orderNumber])
+  @@index([status])
+}
+
+enum OrderStatus {
+  RECEIVED
+  PREPARING
+  READY
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CREDIT_CARD
+  DEBIT_CARD
+  PIX
+  CASH
+  BOLETO
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum DeliveryType {
+  DELIVERY
+  PICKUP
+  DINE_IN
+}
+
+// Itens do pedido
+model OrderItem {
+  id          String               @id @default(cuid())
+  order       Order                @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId     String
+  product     Product              @relation(fields: [productId], references: [id])
+  productId   String
+  variation   ProductVariation     @relation(fields: [variationId], references: [id])
+  variationId String
+  quantity    Int
+  price       Decimal              @db.Decimal(10, 2)
+  additionals OrderItemAdditional[]
+  createdAt   DateTime             @default(now())
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+// Adicionais do item do pedido
+model OrderItemAdditional {
+  id           String     @id @default(cuid())
+  orderItem    OrderItem  @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  orderItemId  String
+  additional   Additional @relation(fields: [additionalId], references: [id])
+  additionalId String
+  quantity     Int        @default(1)
+  price        Decimal    @db.Decimal(10, 2)
+
+  @@index([orderItemId])
+}
+
+// Leads e rastreamento
+model Lead {
+  id         String     @id @default(cuid())
+  customer   Customer?  @relation(fields: [customerId], references: [id])
+  customerId String?
+  source     String     // website, whatsapp, instagram, etc
+  utmSource  String?
+  utmMedium  String?
+  utmCampaign String?
+  utmContent String?
+  converted  Boolean    @default(false)
+  createdAt  DateTime   @default(now())
+
+  @@index([source])
+  @@index([converted])
+}
+
+// Cliques no WhatsApp
+model WhatsAppClick {
+  id         String   @id @default(cuid())
+  productId  String?
+  orderId    String?
+  page       String
+  utmSource  String?
+  utmMedium  String?
+  utmCampaign String?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([productId])
+  @@index([page])
+  @@index([createdAt])
+}
+
+// Avaliações
+model Review {
+  id         String   @id @default(cuid())
+  orderId    String   @unique
+  rating     Int      // 1-5
+  comment    String?
+  approved   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([approved])
+  @@index([rating])
+}
+
+// Configurações do site
+model SiteConfig {
+  id                String   @id @default(cuid())
+  deliveryFee       Decimal  @db.Decimal(10, 2) @default(5.00)
+  freeDeliveryMin   Decimal  @db.Decimal(10, 2) @default(50.00)
+  minOrderValue     Decimal  @db.Decimal(10, 2) @default(20.00)
+  isOpen            Boolean  @default(true)
+  openingHours      String   @default("Ter-Dom: 18h-23h")
+  deliveryTime      String   @default("40-60 min")
+  whatsappNumber    String   @default("5542999887766")
+  instagramUrl      String?
+  facebookUrl       String?
+  updatedAt         DateTime @updatedAt
+}
+```
